@@ -58,7 +58,7 @@ def probability_vector (circuit: QuantumCircuit, shots = 10_000, condition: Lite
     return { state: hits / norm for state, hits in counts.items() }
 
 
-def plot (dimensions: int, circuit: QuantumCircuit, show = False):
+def plot (dimensions: int, circuit: QuantumCircuit, show = False, highlight: tuple[str] = None):
     """
     Plots the given circuit in the asked dimensions.
     """
@@ -69,33 +69,50 @@ def plot (dimensions: int, circuit: QuantumCircuit, show = False):
 
     # split basis states back into the coordinates they represent
     # and add them to the appropriate dimensional sublist
-    coords = [[] for _ in range(dimensions)]    
+    coords = [[] for _ in range(dimensions)]
+    hcoords = None
     for state in probs.keys():
-        for sublist, dim in zip(coords, wrap(state, (circuit.num_qubits - 1) // dimensions), strict=True):
-            sublist.append(int(dim, 2))
+        point = [int(dim, 2) for dim in wrap(state, (circuit.num_qubits - 1) // dimensions)]
+        if highlight is not None and point == highlight:
+            hcoords = point
+            continue
 
-    fig, ax = plt.subplots()
+        for sublist, dim in zip(coords, point, strict=True):
+            sublist.append(dim)
 
     if dimensions == 3:
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
+    else:
+        fig, ax = plt.subplots()
 
     ax.set_xlabel('x')
     ax.set_ylabel('y')
+
     if dimensions == 3:
         ax.set_zlabel('z')
-    fig.colorbar(ax.scatter(*reversed(coords), c=list(probs.values()), vmin=0, vmax=1))
 
+    ax.scatter(*reversed(coords), c='blue')
+    
+    if hcoords:
+        ax.scatter(*reversed(hcoords), c='red', marker='x')
+        ax.text(
+            *(c + 0.2 for c in reversed(hcoords)), 
+            f'({", ".join(str(c) for c in reversed(hcoords))})', color='red')
+    
     if show:
         plt.show()
 
     return fig
 
 
-def cycle_shift (circuit: QuantumCircuit, pos: QuantumRegister, step: int = 1, show = False):
+def cycle_shift (circuit: QuantumCircuit, pos: QuantumRegister, step: int = 1, show = False, barrier = True):
     """
     Shifts mod 2**len(pos) along the dimension expressed by `pos`, for the given amount of `step`s.
     """
+    if barrier:
+        circuit.barrier()
+
     # can only truly shift by mod 2**n jumps, so normalize the step to this region
     # if the true jump is 0 steps, do nothing
     if (_step := abs(step) % 2 ** pos.size) == 0: 
@@ -119,7 +136,7 @@ def cycle_shift (circuit: QuantumCircuit, pos: QuantumRegister, step: int = 1, s
         if controls == padding: circuit.x(qubit)  # MCX doesn't generalize to 0 controls, add the lone X gate manually
         else: circuit.mcx(pos[padding:controls], qubit)
     # perform a cycle shift for the remaining step amount
-    cycle_shift(circuit, pos, (_step - largest_p2) * (1 if step > 0 else -1))
+    cycle_shift(circuit, pos, (_step - largest_p2) * (1 if step > 0 else -1), barrier=False)
 
 
 if __name__ == '__main__':
@@ -127,7 +144,7 @@ if __name__ == '__main__':
     size = 8
 
     # TESTS: draw all possible diagonals 
-#    rule = lambda x, y: x == y or x == size - 1 - y  # works only for dims = 2
+    # rule = lambda x, y: x == y or x == size - 1 - y  # works only for dims = 2
     rule = lambda x, y, z: (  # works only for dims = 3
         x == y == z or 
         x == y == size - 1 - z or 
@@ -135,7 +152,15 @@ if __name__ == '__main__':
         x == size - 1 - y == size - 1 - z
         )
 
-    qc, p, c = load_shape(dims, size, rule, show=True)
+    qc, p, c = load_shape(dims, size, rule, show=False)
+    fig1 = plot(dims, qc, highlight=[1, 1, 1], show=False)
+
     cycle_shift(qc, p[0], 3) # move 3 steps along the x-axis
+    cycle_shift(qc, p[1], 2) # move 2 steps along the y-axis
+    cycle_shift(qc, p[2], 1) # move 1 steps along the z-axis
     
-    plot(dims, qc, show=True)
+    # coords are read in reverse order: [(z, ) y, x]
+    fig2 = plot(dims, qc, highlight=[2, 3, 4], show=False)
+
+    qc.draw('mpl')
+    plt.show()
