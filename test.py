@@ -7,7 +7,7 @@ from textwrap import wrap
 import matplotlib.pyplot as plt
 
 
-def encoding (dimensions: int, size: int, rule: Callable):
+def encoding (dimensions: int, size: int, *rules: list[Callable]):
     """
     Maps the given rule into a quantum binary image of given `dimensions` and given `size` per dimension.
     """
@@ -19,20 +19,24 @@ def encoding (dimensions: int, size: int, rule: Callable):
     col = QuantumRegister(1, name='clr')
     circuit = QuantumCircuit(*[*pos, col])
     # the qubits of all positional registers unwrapped for easy mcx declarations
-    controls = [q for p_reg in pos for q in p_reg] 
+    controls = [q for p_reg in pos for q in p_reg]
+    # the color of each point
+    colors: dict[tuple[int], int] = {}
 
     # initialize indexers
-    for p_reg in pos: 
-        circuit.h(p_reg)
+    for p_reg in pos: circuit.h(p_reg)
 
-    # generate every possible point and if `rule` accepts it, add a MCX gate with controls 
+    # generate every possible point and if any of the `rules` accepts it, add a MCX gate with controls 
     # according to its coordinates, targetting `col`.
     for point in product(range(size), repeat=dimensions):
-        if rule(*point):
-            control_state = ''.join([bin(coordinate)[2:].zfill(qubits) for coordinate in reversed(point)])
-            circuit.mcx(controls, col, ctrl_state=control_state)
+        for color, rule in enumerate(rules):
+            if rule(*point):
+                control_state = ''.join([bin(coordinate)[2:].zfill(qubits) for coordinate in reversed(point)])
+                circuit.mcx(controls, col, ctrl_state=control_state)
+                colors[point] = color  # paint the pixel according to the rule that accepted it
+                break
     
-    return circuit, pos
+    return circuit, pos, colors
 
 
 def statevector (circuit: QuantumCircuit, shots = 10_000, condition: Literal['0', '1'] = '1') -> list[str]:
@@ -76,6 +80,7 @@ def cycle_shift (circuit: QuantumCircuit, pos: QuantumRegister, step: int = 1, s
 
         if controls == padding: circuit.x(qubit)  # MCX doesn't generalize to 0 controls, add the lone X gate manually
         else: circuit.mcx(pos[padding:controls], qubit)
+        
     # perform a cycle shift for the remaining step amount
     cycle_shift(circuit, pos, (_step - largest_p2) * (1 if step > 0 else -1), barrier=False)
 
@@ -84,16 +89,15 @@ class Plotter:
     """
     Custom context manager to handle shifting and plotting more clearly
     """
-    def __init__(self, circuit: QuantumCircuit, axes: Sequence[QuantumRegister]):
-        if (dims := len(axes)) not in (2, 3):
-            raise NotImplementedError(f'Cannot plot {dims}D structures.')
+    def __init__(self, circuit: QuantumCircuit, axes: Sequence[QuantumRegister], colors: Sequence[int]):
+        if (dims := len(axes)) not in (2, 3): raise NotImplementedError(f'Cannot plot {dims}D structures.')
 
         self.circ = circuit
         self.axes = axes
-        self.apriori = statevector(self.circ)  # keep a record of the original image
-        self.a_colors = { state: i for i, state in enumerate(self.explode(self.apriori)) }  # og image color/point
+        self.a_colors = colors  # og image color/point
         self.p_colors: dict[tuple[int], int] = self.a_colors.copy()  # shifted image color/point
-        
+        self.apriori = statevector(self.circ)  # keep a record of the original image
+    
     def __enter__(self):
         return self
 
@@ -110,16 +114,14 @@ class Plotter:
         """
         chunk = (self.circ.num_qubits - 1) // len(self.axes)
 
-        for state in states:
-            yield tuple(int(dim, 2) for dim in wrap(state, chunk))
+        for state in states: yield tuple(int(dim, 2) for dim in wrap(state, chunk))
 
     def shift (self, axis: Sequence[int], step: int = 1):
         """
         Convenience function to be used inside the context manager. Allows declaring the entire shift-axis at once
         and how many steps along its path to take.
         """
-        for dim, scalar in enumerate(axis):
-            cycle_shift(self.circ, self.axes[dim], step * scalar)
+        for dim, scalar in enumerate(axis): cycle_shift(self.circ, self.axes[dim], step * scalar)
 
         updated = self.p_colors.copy()
         overflow = 1 << self.axes[0].size
@@ -156,23 +158,32 @@ class Plotter:
         return fig
 
 
-if __name__ == '__main__':
-    dims2, dims3, size = 2, 3, 8
-
-    # TESTS: draw all possible diagonals 
-    rule2 = lambda x, y: x == y or x == size - 1 - y  # works only for dims = 2
-    rule3 = lambda x, y, z: (  # works only for dims = 3
-        x == y == z or 
-        x == y == size - 1 - z or 
-        x == size - 1 - y == z or
-        x == size - 1 - y == size - 1 - z
+def test_2d (size: int):
+    """
+    Generates the two diagonals of a square of side `size`.
+    """
+    return encoding(2, size, 
+        lambda x, y: x == y, 
+        lambda x, y: x == size - 1 - y
         )
 
-    # qc, p = encoding(dims2, size, rule2)
-    qc, p = encoding(dims3, size, rule3)
+def test_3d (size: int):
+    """
+    Generates the four diagonals of a cube of side `size`.
+    """
+    return encoding(3, size, 
+        lambda x, y, z: x == y == z, 
+        lambda x, y, z: x == y == size - 1 - z,
+        lambda x, y, z: x == size - 1 - y == z,
+        lambda x, y, z: x == size - 1 - y == size - 1 - z
+        )
+
+if __name__ == '__main__':
+    # qc, p, c = test_2d(8)
+    qc, p, c = test_3d(8)
     
-    with Plotter(qc, p) as pltr:
+    with Plotter(qc, p, c) as pltr:
         # move one step along the x/3=y/2=z axis
         # ie mean 3 steps along the x-axis, 2 along the y-axis and 1 along the z-axis
-        pltr.shift([3, 2, 1], step=1)
+        pltr.shift([3, 2, 1], step=1)  # NOTE: this obviously only works for the 3D test. Define some other shift for 2D.
         
