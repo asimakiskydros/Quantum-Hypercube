@@ -64,23 +64,19 @@ def cycle_shift (circuit: QuantumCircuit, pos: QuantumRegister, step: int = 1, s
         if show:
             circuit.draw('mpl')
             plt.show()
-
         return
     # work recursively to save gates; jump by the largest power of 2 thats less than the remaining step
     largest_p2 = 1 << (_step.bit_length() - 1)
     # to jump by a power of 2, start the shifting log(2**k) qubits later
     padding = int(log2(largest_p2))
-    # reflect the circuit structure if the step is negative
-    adjust = lambda x: (pos.size - 1 - x if step > 0 else x)
+    # # reflect the circuit structure if the step is negative
+    start, stop, by = (pos.size - 1, padding - 1, -1) if step > 0 else (padding, pos.size, 1)
+    for i in range(start, stop, by):
+        if i == padding:
+            circuit.x(pos[i])  # qiskit doesnt support declaration of a mcx with 0 controls through .mcx
+        else:
+            circuit.mcx(pos[padding:i], pos[i])
 
-    for controls, qubit in enumerate(reversed(pos) if step > 0 else pos):
-        if pos.index(qubit) < padding: continue  # skip the padding qubits
-        
-        controls = adjust(controls)
-
-        if controls == padding: circuit.x(qubit)  # MCX doesn't generalize to 0 controls, add the lone X gate manually
-        else: circuit.mcx(pos[padding:controls], qubit)
-        
     # perform a cycle shift for the remaining step amount
     cycle_shift(circuit, pos, (_step - largest_p2) * (1 if step > 0 else -1), barrier=False)
 
@@ -179,11 +175,11 @@ def test_3d (size: int):
         )
 
 if __name__ == '__main__':
-    # qc, p, c = test_2d(8)
-    qc, p, c = test_3d(8)
+    qc, p, c = test_2d(8)
+    # qc, p, c = test_3d(8)
     
     with Plotter(qc, p, c) as pltr:
         # move one step along the x/3=y/2=z axis
         # ie mean 3 steps along the x-axis, 2 along the y-axis and 1 along the z-axis
-        pltr.shift([3, 2, 1], step=1)  # NOTE: this obviously only works for the 3D test. Define some other shift for 2D.
-        
+        # pltr.shift([3, 2, 1], step=1)  # NOTE: this obviously only works for the 3D test. Define some other shift for 2D.
+        pltr.shift([3, 2], step=3)
