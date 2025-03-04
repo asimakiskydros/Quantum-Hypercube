@@ -7,7 +7,7 @@ from textwrap import wrap
 import matplotlib.pyplot as plt
 
 
-def encoding (dimensions: int, size: int, *rules: list[Callable]):
+def encoding (dimensions: int, size: int, *rules: list[Callable], encapsulate = True):
     """
     Maps the given rule into a quantum binary image of given `dimensions` and given `size` per dimension.
     """
@@ -17,7 +17,7 @@ def encoding (dimensions: int, size: int, *rules: list[Callable]):
     qubits = int(log2(size))
     pos = [QuantumRegister(qubits, name=f'p{i}') for i in range(dimensions)]
     col = QuantumRegister(1, name='clr')
-    circuit = QuantumCircuit(*[*pos, col])
+    circuit = QuantumCircuit(*pos, col)
     # the qubits of all positional registers unwrapped for easy mcx declarations
     controls = [q for p_reg in pos for q in p_reg]
     # the color of each point
@@ -36,6 +36,12 @@ def encoding (dimensions: int, size: int, *rules: list[Callable]):
                 colors[point] = color  # paint the pixel according to the rule that accepted it
                 break
     
+    if encapsulate:
+        # if desired, hide the implementation inside a black box
+        gate = circuit.to_gate(label='Encoding')
+        circuit.data.clear()
+        circuit.append(gate, [q for reg in pos for q in reg] + [col])
+
     return circuit, pos, colors
 
 
