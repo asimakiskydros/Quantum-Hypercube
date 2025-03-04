@@ -1,0 +1,12 @@
+cff-version: 1.2.0
+message: "If you use this repository, please cite it using the following:"
+authors:
+  - name: "Asimakis Kydros"
+    orcid: "https://orcid.org/0009-0009-5278-5480"
+  - name: "Konstantinos Prousalis"
+    orcid: "https://orcid.org/0000-0002-6810-1719"
+title: "Cycle Shift Transformations on Quantum m-Dimensional Structural
+Representations"
+repository: "https://github.com/asimakiskydros/Quantum-Hypercube"
+version: "v1.0.0"
+date-released: "2025-03-01"
