@@ -3,6 +3,10 @@
     Relevant to: https://doi.org/10.1088/1402-4896/ae1d2b
 """
 
+# with this, the current experiment file is executable while being able to use src as a package
+import sys, os
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(project_root)
 
 from qiskit import QuantumCircuit, QuantumRegister
 from typing import Sequence, Callable, Mapping

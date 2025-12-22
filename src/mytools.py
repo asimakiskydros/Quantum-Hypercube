@@ -114,6 +114,12 @@ def sample (width: int, ceiling: int, seed=42):
     
 
 def stats (data: list):
+    """
+    Yields relevant statistical data arising from the given dataset (assumed applicable): 
+    `mean`, `std`, `median`, `25th percentile`, `75th percentile`.
+
+    All metrics skip potential `NaN`s.
+    """
     arr = np.array(data, dtype=float)
     return {
         'mean':   float(np.nanmean(arr)),

@@ -5,10 +5,15 @@ from math import log2
 
 def cst_max_smallest (circuit: QuantumCircuit=None, pos: QuantumRegister=None, step: int=1, show=False, barrier=False, width: int=None):
     """
+    []========================================== A.K.A. ALGORITHM 1 ==========================================[]
+
     Shifts mod 2**len(pos) along the dimension expressed by `pos`, for the given amount of `step`s.
 
-    To do so, it decomposes `step` into a sum of powers of two corresponding to the indices in the bit representation of `step`
-    where `step` has bit value '1'. E.g. 30 = 16 + 8 + 4 + 2 = 2^4 + 2^3 + 2^2 + 2^1 since bin(30)=b'011110'.
+    To do so, it decomposes `step` into a sum of powers of two corresponding to the indices in the bit 
+    representation of `step` where `step` has bit value '1'. 
+
+    E.g. 30 = 16 + 8 + 4 + 2 = 2^4 + 2^3 + 2^2 + 2^1 since bin(30)=b'011110'.
+    
     Then each power of two is realized as a cycle shift, saving on gates for the total `step`.
 
     The `width` parameter enables testing mode.
