@@ -1,5 +1,7 @@
 # Custom
-ignore/
+.ignore/
+.vscode/
+.mywip/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
